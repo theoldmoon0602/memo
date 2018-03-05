@@ -1,0 +1,79 @@
+#!/usr/bin/env python
+import argparse
+import os
+from datetime import datetime
+import json
+
+
+def load(store_file):
+    if not os.path.isfile(store_file):
+        return []
+    f = open(store_file, 'r')
+    return json.load(f)
+
+
+def save(store_file, memo_json):
+    f = open(store_file, 'w')
+    json.dump(memo_json, f, ensure_ascii=False, indent=2)
+    f.close()
+
+
+def main():
+    tags = []
+    memo = ""
+    cwd = os.getcwd()
+    now = int(datetime.now().strftime('%s'))
+    memo_path = os.environ.get('MEMO_PATH', os.environ.get('HOME'))
+    memo_file = 'memo.json'
+    memo_path = os.path.join(memo_path, memo_file)
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-t", "--tag")
+    parser.add_argument("-l", "--list", nargs="*")
+    parser.add_argument("-d", "--delete", nargs="*")
+    parser.add_argument("memo", nargs="*")
+    args = parser.parse_args()
+    memo = " ".join(args.memo)
+    if args.tag:
+        tags = list(map(lambda x: x.strip(), args.tag.split(",")))
+
+    if args.delete is not None:
+        memo_json = load(memo_path)
+        memo_json = sorted(memo_json, key=lambda x: x['time'], reverse=True)
+        delete_indexes = list(map(int, args.delete))
+        new_memo = []
+        for i, e in enumerate(memo_json):
+            if i + 1 in delete_indexes:
+                continue
+            new_memo.append(e)
+        save(memo_path, new_memo)
+        return
+
+    if args.list is not None:
+        memo_json = load(memo_path)
+        memo_json = sorted(memo_json, key=lambda x: x['time'], reverse=True)
+        if len(tags) > 0:
+            memo_json = list([e.memo for e in memo_json if (set(tags) - set(memo_json.tags)) == 0])
+        for i, e in enumerate(memo_json):
+            print("{} {} [{} {}]".format(
+                i + 1,
+                e['memo'],
+                datetime.fromtimestamp(e['time']).strftime('%Y-%m-%d %H:%M:%S'),
+                e['path']
+            ))
+
+    if len(memo) == 0:
+        return
+
+    memo_json = load(memo_path)
+    memo_json.append({
+        'tags': tags,
+        'memo': memo,
+        'path': cwd,
+        'time': now
+    })
+    save(memo_path, memo_json)
+
+
+if __name__ == '__main__':
+    main()
